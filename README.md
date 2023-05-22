@@ -266,29 +266,21 @@ merqury.sh AG0956_trimmed_test1.4.meryl assembly3.fasta Flye_asmb3_test
 #SBATCH --account=ga03714
 
 module purge
-
 module load purge_dups/1.2.6-gimkl-2022a-Python-3.10.5 
-
 cd /nesi/nobackup/ga03714/Melissa/Mapping
 
 # Step 1 aligns primary assembly and ONT data
-#minimap2 -x map-ont Q15_5kb_130423.bp.p_ctg.fa All_Q15_fastq.gz > HiFi130423_Q15.paf.gz
-
-# creates *.base.cov and *.stat files
-#pbcstat HiFi130423_Q15.paf.gz
-
+minimap2 -x map-ont Q15_5kb_130423.bp.p_ctg.fa All_Q15_fastq.gz > HiFi130423_Q15.paf.gz
+# creates .base.cov and .stat files
+pbcstat HiFi130423_Q15.paf.gz
 # calculates read-depth and cutoffs
-#calcuts PB.stat > cutoffs 2> calcults.log
-
+calcuts PB.stat > cutoffs 2> calcults.log
 # split the primary assembly 
-#split_fa Q15_5kb_130423.bp.p_ctg.fa > HiFi130423.split
-
+split_fa Q15_5kb_130423.bp.p_ctg.fa > HiFi130423.split
 # Uses the split primary assembly and does a self assignment
-#minimap2 -xasm5 -DP HiFi130423.split HiFi130423.split > HiFi130423.split.self.paf.gz
-
+minimap2 -xasm5 -DP HiFi130423.split HiFi130423.split > HiFi130423.split.self.paf.gz
 # purges the haplotigs, gives a duplication bed file and log of purged haplotigs - do we need a -e flag here?
-#purge_dups -2 -T cutoffs -c PB.base.cov HiFi130423.split.self.paf.gz > dups.bed 2> purge_dups.log
-
+purge_dups -2 -T cutoffs -c PB.base.cov HiFi130423.split.self.paf.gz > dups.bed 2> purge_dups.log
 # taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 
@@ -307,29 +299,21 @@ get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 #SBATCH --account=ga03714
 
 module purge
-
 module load purge_dups/1.2.6-gimkl-2022a-Python-3.10.5 
-
 cd /nesi/nobackup/ga03714/Melissa/Mapping
 
 # Step 1 aligns primary assembly and ONT data
 #minimap2 -x map-ont Q15_5kb_130423.bp.p_ctg.fa All_Q15_fastq.gz | gzip -c -> HiFi130423_Q15-c.paf.gz
-
-# creates *.base.cov and *.stat files
+# creates .base.cov and .stat files
 #pbcstat HiFi130423_Q15-c.paf.gz
-
 # calculates read-depth and cutoffs? (or whatever .stat output is)
-#calcuts PB.stat > cutoffs-c 2> calcults-c.log
-
+calcuts PB.stat > cutoffs-c 2> calcults-c.log
 # split the primary assembly 
-#split_fa Q15_5kb_130423.bp.p_ctg.fa > HiFi130423.split
-
+split_fa Q15_5kb_130423.bp.p_ctg.fa > HiFi130423.split
 # Uses the split primary assembly and does a self assignment
-#minimap2 -xasm5 -DP HiFi130423.split HiFi130423.split | gzip -c -> HiFi130423-c.split.self.paf.gz
-
+minimap2 -xasm5 -DP HiFi130423.split HiFi130423.split | gzip -c -> HiFi130423-c.split.self.paf.gz
 # purges the haplotigs, gives a duplication bed file and log of purged haplotigs - do we need a -e flag here?
-#purge_dups -2 -T cutoffs-c -c PB.base.cov HiFi130423-c.split.self.paf.gz > dups.bed 2> purge_dups.log
-
+purge_dups -2 -T cutoffs-c -c PB.base.cov HiFi130423-c.split.self.paf.gz > dups.bed 2> purge_dups.log
 # taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 
@@ -353,9 +337,7 @@ get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 #SBATCH --account=brins03581
 
 module purge
-
 cd  /nesi/nobackup/ga03714/Melissa/Software/backmap/backmap
-
 module load SAMtools BWA minimap2 BEDTools MultiQC R Perl
 
 perl backmap.pl -b Purged_AllQ15_ONT.bam  -b Purged_Illumina.bam -o ModEst_test -t 16 -nq
