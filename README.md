@@ -271,14 +271,14 @@ module load purge_dups/1.2.6-gimkl-2022a-Python-3.10.5
 
 cd /nesi/nobackup/ga03714/Melissa/Mapping
 
-# Step 1 aligns primary assembly and ONT data, (Is genome large enough we need -I flag?)
+# Step 1 aligns primary assembly and ONT data
 #minimap2 -x map-ont Q15_5kb_130423.bp.p_ctg.fa All_Q15_fastq.gz > HiFi130423_Q15.paf.gz
 
 # creates *.base.cov and *.stat files
 #pbcstat HiFi130423_Q15.paf.gz
 
-# calculates read-depth and cutoffs? (or whatever .stat output is)
-#calcuts PB.stat > cutoffs 2>calcults.log
+# calculates read-depth and cutoffs
+#calcuts PB.stat > cutoffs 2> calcults.log
 
 # split the primary assembly 
 #split_fa Q15_5kb_130423.bp.p_ctg.fa > HiFi130423.split
@@ -289,10 +289,10 @@ cd /nesi/nobackup/ga03714/Melissa/Mapping
 # purges the haplotigs, gives a duplication bed file and log of purged haplotigs - do we need a -e flag here?
 #purge_dups -2 -T cutoffs -c PB.base.cov HiFi130423.split.self.paf.gz > dups.bed 2> purge_dups.log
 
-# taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences 
+# taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 
- # Below gives same results for the output purged.fa 
+ # Below gives same results for the output purged.fa, using the -c flag, just wanted to see if a difference
 #!/bin/bash -e
 #SBATCH --job-name=purgeDups_align-c
 #SBATCH --output=MCN_%j.out
@@ -330,5 +330,32 @@ cd /nesi/nobackup/ga03714/Melissa/Mapping
 # purges the haplotigs, gives a duplication bed file and log of purged haplotigs - do we need a -e flag here?
 #purge_dups -2 -T cutoffs-c -c PB.base.cov HiFi130423-c.split.self.paf.gz > dups.bed 2> purge_dups.log
 
-# taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences 
+# taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
+
+
+# Trying ModEst for genome size - see how it stacks up to other tools for same purpose 
+# Annabel figured out best to just use aligned and sorted .bam files to skip a few steps in backmap.pl
+# used bwa for Illumina, and minimap2 for ONT for .sam files, then created .bam using samtools sort
+# Will run this code when files are done (23 May)
+
+#!/bin/bash -e
+#SBATCH --job-name=modest_test
+#SBATCH --output=MCN_%j.out
+#SBATCH --error=MCN_%j.err
+#SBATCH --mail-user=m.nehmens@massey.ac.nz
+#SBATCH --mail-type=ALL
+#SBATCH --time=18:00:00
+#SBATCH --mem=20G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --profile=task 
+#SBATCH --account=brins03581
+
+module purge
+
+cd  /nesi/nobackup/ga03714/Melissa/Software/backmap/backmap
+
+module load SAMtools BWA minimap2 BEDTools MultiQC R Perl
+
+perl backmap.pl -b Purged_AllQ15_ONT.bam  -b Purged_Illumina.bam -o ModEst_test -t 16 -nq
