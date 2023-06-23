@@ -1,9 +1,11 @@
 Urchin_Genome_Workflow
+```bash
 # Steps for genome assembly of C. rodgersii
 # Raw ONT data trimmed adapters, ready for use from AW: folder Recalled_114_Apr2023
 # Used NanoPlot to visualize data: 
 NanoPlot --fastq Combined_pass.pc.fastq.gz   --huge  --plots kde --color lightgray --outdir /nesi/nobackup/ga03714/Melissa/Fastq/Recalled_114_Apr2023/read_qc$ -t 2
 NanoPlot --fastq Combined_fail.pc.fastq.gz   --huge  --plots kde --color lightgray --prefix failed_reads_test --outdir /nesi/nobackup/ga03714/Melissa/Fastq/Recalled_114_Apr2023/read_qc$ -t 2
+```
 # Evaluated desired cutoffs for quality and size, decided to combine pass/fail files Combined_pass.pc.fastq.gz, Combined_fail.pc.fastq.gz into one file Combined_pass_and_fail.pc.fastq.gz
 cat Combined_pass.pc.fastq.gz Combined_fail.pc.fastq.gz > Combined_pass_and_fail.pc.fastq.gz
 # Used combined file to filter into binned sizes first 
