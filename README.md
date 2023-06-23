@@ -108,7 +108,7 @@ cd /nesi/nobackup/ga03714/Melissa/Fastq/Recalled_114_Apr2023/
 flye --nano-hq Q15_50kbplus.fastq.gz Q15_20kb_to_50kb.fastq.gz Q15_10kb_to_20kb.fastq.gz Q15_5kb_to_10kb.fastq.gz --out-dir /nesi/nobackup/ga03714/Melissa/Assemblies/FLYE/flye_Q15_5Kb_11April  -t 32
 ```
 
-###HiFiASM
+### HiFiASM
 ```bash
 #!/bin/bash -e
 #SBATCH --job-name=hifi_Q15_l0
@@ -130,7 +130,7 @@ cd /nesi/nobackup/ga03714/Melissa/Assemblies/Hifiasm
 hifiasm -o Q15_5kbPlus_l0_01May2023 -t 32 Q15_10kb_to_20kb.fastq.gz  Q15_20kb_to_50kb.fastq.gz  Q15_50kbplus.fastq.gz  Q15_5kb_to_10kb.fastq.gz  
 ```
 
-###BUSCO used to get metrics on assemblies, example:
+### BUSCO used to get metrics on assemblies, example:
 ```bash
 #!/bin/bash -e
 #SBATCH --job-name=busco_FLYEQ155Kb
@@ -151,7 +151,7 @@ cd /nesi/nobackup/ga03714/Melissa/Assembly_QC
 busco -i /nesi/nobackup/ga03714/Melissa/Assemblies/FLYE/flye_Q15_5Kb_11April/assembly.fasta -c 8 -o flye_Q15_5Kb_11April_busco5.3.2 -m genome -l metazoa
 ```
 
-###Illumina data
+### Illumina data
 Arrived, need to trim adaptors using fastp, needed both full pathway and new output file directory:
 ```bash
 #!/bin/bash -e
@@ -174,7 +174,7 @@ cd /nesi/nobackup/ga03714/Melissa/Illumina
 fastp -w 4 -i /nesi/nobackup/ga03714/Melissa/Illumina/AG0956_001_S469_R1_001.fastq.gz -I /nesi/nobackup/ga03714/Melissa/Illumina/AG0956_001_S469_R2_001.fastq.gz -o /nesi/nobackup/ga03714/Melissa/Illumina/trimmed/AG0956_R1_trimmed.fastq.gz -O /nesi/nobackup/ga03714/Melissa/Illumina/trimmed/AG0956_R2_trimmed.fastq.gz
 ```
 
-###Filtered trimmed Illumina
+### Filtered trimmed Illumina
 
 jellyfish:
 ```bash
@@ -208,7 +208,7 @@ jellyfish histo -t 10 All_kina_140bptrimmed_reads.jf > All_kina_140bptrimmed_rea
 seqkit stats All_kina_140bptrimmed_reads.fq >> IlluminaStats.txt
 ```
 
-###[Genomescope]( http://genomescope.org/analysis.php?code=KmHYaCKuuK8wLs21dAt3 "website for Illumina data run with genomescope")
+### [Genomescope]( http://genomescope.org/analysis.php?code=KmHYaCKuuK8wLs21dAt3 "website for Illumina data run with genomescope")
 Change read length to 140, load All_kina_140bptrimmed_reads.histo Illumina file and run.<br>
 Started mapping with purge_haplotigs (code below), but realized need to use purge_dups
 ```bash
@@ -267,6 +267,7 @@ ln -s /nesi/nobackup/ga03714/Melissa/Assemblies/FLYE/assembly3_18April/assembly.
 ```
 
 ### Merqury and meryl
+```bash
 #!/bin/bash -e
 #SBATCH --job-name=merqury_asmb3
 #SBATCH --mail-user=m.nehmens@massey.ac.nz
@@ -288,9 +289,13 @@ ml SAMtools BEDTools R
 cd /nesi/nobackup/ga03714/Melissa/Software/Merqury/merqury
 
 merqury.sh AG0956_trimmed_test1.4.meryl assembly3.fasta Flye_asmb3_test
+```
 
-# Purge_dups workflow, sorted out, just waiting to get to assembly we want 
+### Purge_dups workflow
 
+sorted out, just waiting to get to assembly we want 
+
+```bash
 #!/bin/bash -e
 #SBATCH --job-name=purgeDups_getseq
 #SBATCH --output=MCN_%j.out
@@ -322,8 +327,10 @@ minimap2 -xasm5 -DP HiFi130423.split HiFi130423.split > HiFi130423.split.self.pa
 purge_dups -2 -T cutoffs -c PB.base.cov HiFi130423.split.self.paf.gz > dups.bed 2> purge_dups.log
 # taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
+```
 
- # Below gives same results for the output purged.fa, using the -c flag, just wanted to see if a difference
+ Below gives same results for the output purged.fa, using the -c flag, just wanted to see if a difference
+ ```bash
 #!/bin/bash -e
 #SBATCH --job-name=purgeDups_align-c
 #SBATCH --output=MCN_%j.out
@@ -356,12 +363,15 @@ purge_dups -2 -T cutoffs-c -c PB.base.cov HiFi130423-c.split.self.paf.gz > dups.
 # taking the duplication bed file and the original assembly and getting the purged (primary and haplotig) sequences - results in purged.fa (use this) and hap.fa (alternatives, might be useful)
 get_seqs dups.bed Q15_5kb_130423.bp.p_ctg.fa
 
+```
 
-# Trying ModEst for genome size - see how it stacks up to other tools for same purpose 
-# Annabel figured out best to just use aligned and sorted .bam files to skip a few steps in backmap.pl
-# used bwa for Illumina, and minimap2 for ONT for .sam files, then created .bam using samtools sort
-# Will run this code when files are done (23 May)
+### Trying ModEst
+for genome size - see how it stacks up to other tools for same purpose.<br>
+Annabel figured out best to just use aligned and sorted .bam files to skip a few steps in backmap.pl
+<br>used bwa for Illumina, and minimap2 for ONT for .sam files, then created .bam using samtools sort<br>
+Will run this code when files are done (23 May)
 
+```bash
 #!/bin/bash -e
 #SBATCH --job-name=modest_test
 #SBATCH --output=MCN_%j.out
@@ -380,3 +390,4 @@ cd  /nesi/nobackup/ga03714/Melissa/Software/backmap/backmap
 module load SAMtools BWA minimap2 BEDTools MultiQC R Perl
 
 perl backmap.pl -b Purged_AllQ15_ONT.bam  -b Purged_Illumina.bam -o ModEst_test -t 16 -nq
+```
