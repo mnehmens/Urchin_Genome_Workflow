@@ -341,5 +341,3 @@ cd  /nesi/nobackup/ga03714/Melissa/Software/backmap/backmap
 module load SAMtools BWA minimap2 BEDTools MultiQC R Perl
 
 perl backmap.pl -b Purged_AllQ15_ONT.bam  -b Purged_Illumina.bam -o ModEst_test -t 16 -nq
-
-## RNAseq data arrived 11 August 2023 going to process next week with Annabel yyyaayayay
