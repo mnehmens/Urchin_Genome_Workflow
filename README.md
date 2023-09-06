@@ -341,3 +341,25 @@ cd  /nesi/nobackup/ga03714/Melissa/Software/backmap/backmap
 module load SAMtools BWA minimap2 BEDTools MultiQC R Perl
 
 perl backmap.pl -b Purged_AllQ15_ONT.bam  -b Purged_Illumina.bam -o ModEst_test -t 16 -nq
+
+# Trying miniBUSCO that changed to compleasm
+#!/bin/bash -e
+#SBATCH --job-name=Raven_asmb11
+#SBATCH --output=MCN_%j.out
+#SBATCH --error=MCN_%j.err
+#SBATCH --mail-user=m.nehmens@massey.ac.nz
+#SBATCH --mail-type=ALL
+#SBATCH --time=3:00:00
+#SBATCH --mem=12G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --profile=task
+#SBATCH --account=ga03714
+
+module purge
+
+module load compleasm/0.2.2-gimkl-2022a
+
+cd /nesi/nobackup/ga03714/Melissa/Assemblies/Raven/
+
+compleasm.py run -a Raven_asmb11.fasta -o /nesi/nobackup/ga03714/Melissa/Assembly_QC/Raven_asmb11_compleasm -l metazoa -t 8
