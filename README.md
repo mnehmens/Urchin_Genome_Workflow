@@ -149,4 +149,85 @@ compleasm.py run -a hap1_purged_wmg.np2.fa -o out_directory -l metazoa -t 8
 samtools faidx haps_purged_wmg.np2.fa
 bwa mem -5SP -t12 haps_purged_wmg.np2.fa Urchin_HiC_combined_filtered_R1.fq.gz Urchin_HiC_combined_filtered_R2.fq.gz -o haps_hic.sam
 
+### Flag PCR Duplicates with SAMBLASTER 
+samblaster -i haps_hic.sam -o haps_hic_marked_byread.sam
 
+### Remove unmmaped and non-primary aligned reads, sort and index bam files
+samtools view -S -b -h -@ 12 -F 2316 haps_hic_marked_byread.sam > haps_hic_presort_marked.bam
+samtools sort -@ 12 haps_hic_presort_marked.bam -o haps_hic.bam
+
+# Create .bed file containing each contig and start and end position - use .fai file to do this.
+awk '{print $1, 1, $2}' haps_purged_wmg.np2.fa.fai > hap1.bed
+# duplicated bed file, removed so appropriate haplotype in each, so have hap1.bed hap2.bed
+
+# Create bam with hap1 and hap 2 bed files
+# load SAMtools
+samtools view -L hap1.bed -bh haps_hic.bam > hap1_sorted.bam
+samtools view -L hap2.bed -bh haps_hic.bam > hap2_sorted.bam
+
+# in order to write the fastq files, you need to sort by read name 
+samtools sort -@ 16  -n -o hap1_sorted.name.bam hap1_sorted.bam
+samtools sort  -@ 16  -n -o hap2_sorted.name.bam hap2_sorted.bam
+
+# Having sorted, we then get samtools fastq to write out the reads
+samtools fastq  -@16 -s hap1_singletons.fastq -1 hap1_paired_1.fastq -2 hap1_paired_2.fastq  hap1_sorted.name.bam
+samtools fastq  -@16 -s hap2_singletons.fastq -1 hap2_paired_1.fastq -2 hap2_paired_2.fastq  hap2_sorted.name.bam
+
+# Repeat steps, but one hap at a time
+# laod SAMtools BWA
+bwa mem -5SP -t 16 hap1_purged_wmg.np2.fa hap1_paired_1.fastq hap1_paired_2.fastq > hap1_remapped.sam
+samtools view -S -b -h -@ 16 -F 2316 hap1_remapped.sam > hap1_presort.bam
+samtools sort -@ 16 hap1_presort.bam -o hap1_sorted.bam
+
+bwa mem -5SP -t 16 hap2_purged_wmg.np2.fa hap2_paired_1.fastq hap2_paired_2.fastq > hap2_remapped.sam
+samtools view -S -b -h -@ 16 -F 2316 hap2_remapped.sam > hap2_presort.bam
+samtools sort -@ 16 hap2_presort.bam -o hap2_sorted.bam
+
+# Now can go into normal YAHS pipeline
+yahs --no-mem-check hap1_purged_wmg.np2.fa hap1_sorted.bam -o hap1_yahs4
+yahs --no-mem-check hap2_purged_wmg.np2.fa hap2_sorted.bam -o hap2_yahs4
+
+# Haps YAHS juicer for JBAT
+yahs/juicer pre -a -o hap1_JBAT hap1_yahs4.bin hap1_yahs4_scaffolds_final.agp hap1_purged_wmg.np2.fa.fai >hap1_JBAT.log 2>&1
+cat hap1_JBAT.log  | grep PRE_C_SIZE | awk '{print $2" "$3}' >hap1_JBAT.log.chrom.size
+yahs/juicer pre -a -o hap2_JBAT hap2_yahs4.bin hap2_yahs4_scaffolds_final.agp hap2_purged_wmg.np2.fa.fai >hap2_JBAT.log 2>&1
+cat hap2_JBAT.log  | grep PRE_C_SIZE | awk '{print $2" "$3}' >hap2_JBAT.log.chrom.size
+
+### Juicer tools, for HiC file ####
+java -Xmx36G -jar juicer/CPU/common/juicer_tools.jar pre hap1_JBAT.txt hap1_JBAT.hic hap1_JBAT.log.chrom.size
+java -Xmx36G -jar juicer/CPU/common/juicer_tools.jar pre hap2_JBAT.txt hap2_JBAT.hic hap2_JBAT.log.chrom.size
+
+# produce the final step of juicer using the juicebox output 
+yahs/juicer post -o test_hap2_JBAT TEST_hap2_JBAT.review.assembly hap2_JBAT.liftover.agp hap2_purged_wmg.np2.fa
+yahs/juicer post -o hap1_JBAT hap1_JBAT.review.assembly hap1_JBAT.liftover.agp hap1_purged_wmg.np2.fa
+
+# Now in scaffolds by haplotype, change name to easier identify
+grep ">" hap1_JBAT.FINAL.fa > original.names.hap1_JABT.FINAL.txt
+grep ">" hap2_JBAT.FINAL.fa > original.names.hap2_JABT.FINAL.txt
+
+# Resave as new.names.hap*_JBAT.FINAL.txt and open in editor to put new names removing the ">" before the new name BE CAREFUL TO KEEP ORDER SAME
+seqkit fx2tab hap1_JBAT.FINAL.fa | cut -f 2 | paste new.names.hap1_JBAT.FINAL.txt - | seqkit tab2fx > hap1_JBAT.renamed.FINAL.fa
+seqkit fx2tab hap2_JBAT.FINAL.fa | cut -f 2 | paste new.names.hap2_JBAT.FINAL.txt - | seqkit tab2fx > hap2_JBAT.renamed.FINAL.fa
+
+# Now
+hap1_JBAT.FINAL.agp test_hap2_JBAT.FINAL.agp
+agptools rename rename_agp_hap1.txt hap1_JBAT.FINAL.agp > hap1_JBAT.renamed.FINAL.agp
+agptools rename rename_agp_hap2.txt hap2_JBAT.FINAL.agp > hap2_JBAT.renamed.FINAL.agp
+
+# QC check
+# merqury and compleasm - looks good
+# qualimap, map ONT first on concatenated haps
+minimap2 -t 24 -ax lr:hqae haps_JBAT.renamed.FINAL.fa assembly_input.fastq.gz assembly_input2.fastq.gz > haps_JBAT_ONTmap.sam
+samtools sort -@ 32 -T ali.tmp haps_JBAT_ONTmap.sam > haps_JBAT_ONTmap.bam
+
+#in qualimap script needed to change MaxPermSize=1024m to MaxMetaspaceSize re:suggestion online to get newer java to run
+./qualimap bamqc -bam haps_JBAT_ONTmap.bam -outdir results --java-mem-size=32G
+```
+#### quarTeT
+
+```bash
+# Use quarTeT to find telomeres and centromeres
+#Telominer and Centrominer (repeat for hap2)
+# load Python minimap2 MUMmer trf BLAST gnuplot R
+python3 ./quartet.py TeloExplorer -i hap1_JBAT.renamed.FINAL.fa -c animal -p hap1_renamed
+python3 ./quartet.py CentroMiner -i hap1_JBAT.renamed.FINAL.fa -p hap1_renamed
