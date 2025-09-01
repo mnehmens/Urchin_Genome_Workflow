@@ -227,7 +227,74 @@ samtools sort -@ 32 -T ali.tmp haps_JBAT_ONTmap.sam > haps_JBAT_ONTmap.bam
 
 ```bash
 # Use quarTeT to find telomeres and centromeres
-#Telominer and Centrominer (repeat for hap2)
+# Telominer and Centrominer (repeat for hap2)
 # load Python minimap2 MUMmer trf BLAST gnuplot R
 python3 ./quartet.py TeloExplorer -i hap1_JBAT.renamed.FINAL.fa -c animal -p hap1_renamed
 python3 ./quartet.py CentroMiner -i hap1_JBAT.renamed.FINAL.fa -p hap1_renamed
+```
+#### Manual Curation
+
+```bash
+# Trim excessive N's due to introduction during dual scaffold option assembly
+# Use combined haplotypes
+# Remove the second mt genome in the combined haps fasta
+seqtk subseq haps_JBAT.renamed.FINAL.fa haps_rm_2ndmtg.txt > haps_1mtg_FINAL.fa
+# Trim N's using custom python script, replacing with 10,000 bp
+python trim_ns.py haps_1mtg_FINAL.fa haps_1mtg_trimN.fa 10000
+
+# Rename scaffolds into pesudo-chromosomes
+# use cut to isolate the columns you want, generated an alternative list of scaffold IDs to replace the old ones, using the same order that they are in the fasta file and then seqkit tab2fx to bring it back together
+seqkit fx2tab hap1_1mtg_FINAL_trimN.fa | cut -f 2 | paste hap1_newChromName.txt - | seqkit tab2fx > Crod1.0_chrom_hap1.fa
+seqkit fx2tab hap2_1mtg_FINAL_trimN.fa | cut -f 2 | paste hap2_newChromName.txt - | seqkit tab2fx > Crod1.0_chrom_hap2.fa
+
+
+# Checking it worked correctly 
+grep ">" Crod1.0_chrom_hap1.fa > hap1_NEWTEST.txt
+grep ">" Crod1.0_chrom_hap2.fa > hap2_NEWTEST.txt
+# check in DGENIES -- all looks good, use to figure out orientation, and reverse compliment any not in same direction
+
+# Need to reverse compliment some scaffolds to match both haps. Generate a single fasta per contig using seqkit split -i
+seqkit split -i Crod1.0_chrom_hap2.fa
+seqkit split -i Crod1.0_chrom_hap1.fa
+
+# Doing reverse compliment, then will combine 
+seqtk seq -r $i > ${i%.fa}.rc.fa
+
+# Running the revesre compliment for the correct files e.g. for hap2 chromosome 3 to reverse compliment (rc)
+seqtk seq -r Crod1.0_chrom_hap2.part_Crod_chr03_h2.fa > Crod1.0_chrom_hap2.part_Crod_chr03_h2.rc.fa
+
+# Cat back together all scaffolds in order e.g. hap1_crhom1, chrom2, chrom3, etc...
+# Check in DGENIES summary out file, run seqkit stats between:
+# hap1_1mtg_FINAL_trimN.fa and Crod1.0_chrom_hap1.fa
+# hap2_1mtg_FINAL_trimN.fa, Crod1.0_chrom_hap2.fa and with reverse compliment Crod1.0_chrom_hap2_wRC.fa
+# Check order to make sure everything was put in correct order
+grep ">" Crod1.0_chr_mt_hap1.fa > testorderhap1.txt
+grep ">" Crod1.0_chr_mt_wrc_hap2.fa > testorderhap2.txt
+# all looks good, proceed
+
+# Add back in mt genome per haplotype
+e.g. cat Crod1.0_chrom_hap1.fa mito_gnome.fa > Crod1.0_chr_mt_hap1.fa
+
+# Final quality check at this step before annotation 
+quast Crod1.0_chr_mt_hap1.fa -o quasthap1
+quast Crod1.0_chr_mt_wrc_hap2.fa -o quasthap2
+# looks good, go to EarlGrey
+```
+
+#### EarlGrey
+```bash
+# Run EarlGrey, complete for both haplotypes
+#define the path to container image and export it to a variable
+export CONTAINER_IMG="PATH/TO/earlg-working/earlgrey-4.2.4.aimg"
+
+#simplify the apptainer exec command by exporting it to a variable. 
+#This will help with reduce the length of earlGrey functional command
+export CMD="apptainer exec ${CONTAINER_IMG}"
+ ${CMD} earlGrey -g Crod1.0_chr_mt_hap1.fa -s centrostephanusRodgersii -o ./EarlyGrey_Hap1 -t 16
+
+
+
+
+
+
+
