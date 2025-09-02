@@ -1,5 +1,36 @@
 ## Centrostephanus rodgersii Genome Assembly Workflow
 
+### Trimming and Filtering
+
+```bash
+Add all of the trimming and filtering steps here upfront
+ONT
+# Final decision is to split the passed reads data into >50kb, 20-50kb, 10-20kb, 5-10kb, 1-5kb and <1kb sizes 
+# First, need to combine passed and failed reads into one  
+cat Combined_pass.pc.fastq.gz Combined_fail.pc.fastq.gz > Combined_pass_and_fail.pc.fastq.gz
+
+# Combined dataset will be fed to chopper to create tranches of data according to size (NB at this stage no Q filtering applied)
+gunzip -c Combined_pass_and_fail.pc.fastq.gz | chopper --minlength 50000 | gzip > All_50kbplus.fastq.gz
+
+# Create datasets for assembly 
+# The first test of this will use a Q15 and >5kb subset, second will be Q7 >20kb
+# examples
+gunzip -c All_50kbplus.fastq.gz | chopper --quality 15 | gzip > Q15_50kbplus.fastq.gz
+gunzip -c All_50kbplus.fastq.gz | chopper --quality 7 | gzip > Q7_50kbplus.fastq.gz
+# tested with seqkit stats
+
+Illumina
+Hi-C
+
+
+# RNA-Seq
+# load TrimGalore FastQC
+# repeat for all three tissue types (spine, gonad, mouth)
+read1=L1_1.fq.gz
+read2=L1_2.fq.gz
+
+trim_galore --trim-n  --cores 4 --2colour 20 --paired --fastqc $read1 $read2
+```
 
 #### HiFi-ASM with RAFT
 ```bash
@@ -279,6 +310,14 @@ e.g. cat Crod1.0_chrom_hap1.fa mito_gnome.fa > Crod1.0_chr_mt_hap1.fa
 quast Crod1.0_chr_mt_hap1.fa -o quasthap1
 quast Crod1.0_chr_mt_wrc_hap2.fa -o quasthap2
 # looks good, go to EarlGrey
+
+# After RepeatMasker, need to mask remnant adapters found in contamination scan
+# Fix adapters
+# load BEDTools
+bedtools maskfasta -soft -fi Crod1.0_chr_mt_hap1.fa.masked -bed h1_mask.bed -fo Crod_v1.1_h1_masked.fa
+bedtools maskfasta -soft -fi Crod1.0_chr_mt_wrc_hap2.fa.masked -bed h2_mask.bed -fo Crod_v1.1_h2_masked.fa
+
+# also create copy with no MT (no mitochondrial genome) better for running BRAKER
 ```
 
 #### EarlGrey
@@ -297,11 +336,108 @@ cat hap1_-families.fa.strained hap2_-families.fa.strained > haps_-families.fa.st
 
 # Use CD-HIT est - tested different parameters, this was best
 cd-hit-est -i haps_families.fa.strained -o est_haps.fa -aS 0.8 -c 0.95 -G 0 -n 10 -M 24000 -T 8
+# use this output for RepeatMasker
+```
+#### RepeatMasker
+```bash
+# Run RepeatMasker for both haplotypes using the repeat library from EarlGrey
+RepeatMasker -pa 24 -s -a -no_is -xsmall -gff -dir RepeatMasker -lib est_haps.fa  hap*.fa
 
+# Check for any other repeats to mask
+# Ran contamination scan, found some remnant adapters, going back to manual curation to mask adapters before moving onto BRAKER
+```
+#### BRAKER and Annotation
+```bash
+# Need GeneMark license obtained
+# Need to put config file in working directory
+# Run each haplotype in two runs of protein and then RNA
+#load BRAKER compleasm ProtHint
 
+# protein
+export AUGUSTUS_CONFIG_PATH=path/to/config
+export AUGUSTUS_SCRIPTS_PATH=path/to/scripts
+export AUGUSTUS_BIN_PATH=path/to/bin
+export PYTHON3_PATH=path/to/python
+export SRATOOLS_PATH=path/to/sratools
+export COMPLEASM_PATH=path/to/compleasm
+export PROTHINT_PATH=path/to/bin/prothint.py
 
+srun braker.pl --threads=48 --workingdir=h1_protein \
+    --genome=Crod_v1.1_h1_masked_noMT.fa \
+    --busco_lineage=metazoa_odb10 \
+    --species=centrostephanusRodgersii \
+    --prot_seq=Metazoa.fa
+# RNA
+export AUGUSTUS_CONFIG_PATH=path/to/config
+export AUGUSTUS_SCRIPTS_PATH=path/to/scripts
+export AUGUSTUS_BIN_PATH=path/to/bin
+export PYTHON3_PATH=path/to/python
+export SRATOOLS_PATH=path/to/sratools
+export COMPLEASM_PATH=path/to/compleasm
+export GENEMARK_PATH=path/to/genemark
 
+srun braker.pl --threads=48 --workingdir=h1_RNA\
+    --genome=Crod_v1.1_h1_masked_noMT.fa \
+    --busco_lineage=metazoa_odb10 \
+    --species=centrostephanusRodgersii \
+    --rnaseq_sets_ids=gonad_L1,spine_L1,mouth_L1 \
+    --rnaseq_sets_dirs=path/to/RNA/data
 
+# combine output types by haplotype, repeat for haplotype 1 and haplotype 2
+# load TSEBRA
+# Augustus had best output based on compleasm results
+# intron.cfg was changed was changed to 0.5 for intron support as opposed to default of "1"
+tsebra.py -g ./h1_RNA/Augustus/augustus.hints.gtf,./h1_protein/Augustus/augustus.hints.gtf \
+-c intron.cfg --score_tab ./h1_rp.tab \
+-e ./h1_RNA/hintsfile.gff,./h1_protein/hintsfile.gff \
+-o ./h1_rp.gtf
 
+# Next run to keep longest isoform, then to process fasta into protein fasta and create bed file for synteny
+# Need to wrap fasta based on AGAT specifications 
+# load AGAT seqtk
+agat_sp_keep_longest_isoform.pl -gff h1_rp.gtf -o h1_rp_long.gff
+seqtk seq -l 60 ../Crod_v1.1_h1_masked_noMT.fa> Crod_v1.1_wrapped.fasta
 
+# To be used for synteny analysis
+agat_sp_extract_sequences.pl -g h1_rp_long.gff -f Crod_v1.1_wrapped.fasta -p -o Crod_v1.1_protein.fa
+agat_convert_sp_gff2bed.pl --gff h1_rp_long.gff-o Crod_v1.1.bed
+
+# to make bed files for genespace - output from agat_convert_sp_gff2bed.pl
+awk '{OFS="\t"; print $1, $2, $3, $4}' file.bed > file_fixed.bed
+# To clear everything after the first space in the header after "protein ID" use output from agat_sp_extract_sequences.pl to get sequences from fasta using the .gff from agat_sp_keep_longest_isoform.pl
+awk '{gsub(/ .*/, ""); print $0}' Crod_v1.1_protein.fa > Crod_v1.1_protein_fixed.fa 
+```
+
+#### Synteny
+
+```bash
+# Run SVIM-asm to compare haplotypes
+# align first 
+minimap2 -a -x asm5 --cs -r2k -t 24 Crod_v1.1_h1_masked.fa Crod_v1.1_h2_masked.fa > haps_v1.1_align.sam
+samtools sort -m4G -@4 -o haps_v1.1_align.sorted.bam haps_v1.1_align.sam
+samtools index haps_v1.1_align.sorted.bam
+svim-asm haploid ./SVIM haps_v1.1_align.sorted.bam Crod_v1.1_h1_masked.fa
+
+# SyRI to compare haplotypes
+minimap2 -ax asm5 --eqx Crod_v1.1_h1_masked_noMT.fa Crod_v1.1_h2_masked_noMT.fa > Crod_v1.1_haps_align.sam
+syri -c Crod_v1.1_haps_align.sam -r Crod_v1.1_h1_masked_noMT.fa -q Crod_v1.1_h2_masked_noMT.fa  -k -F S --prefix h1_h2
+
+# GeneSpace
+# Setup R script to point to in SLURM script
+# "genespace.R"
+library("GENESPACE")
+
+wd <- "/synteny"
+path2mcscanx = "/path/to/MCScanX-1.0.0/"
+path2diamond = "/path/to/bin/diamond"
+path2orthofinder = "/path/to/orthofinder"
+
+gpar <- init_genespace(wd = wd,
+  path2mcscanx = path2mcscanx)
+out <- run_genespace(gpar)
+
+# SLUM script to run bash
+#load R-bundle-Bioconductor DIAMOND OrthoFinder
+
+srun Rscript ./genespace.R
 
