@@ -292,6 +292,13 @@ export CONTAINER_IMG="PATH/TO/earlg-working/earlgrey-4.2.4.aimg"
 export CMD="apptainer exec ${CONTAINER_IMG}"
  ${CMD} earlGrey -g Crod1.0_chr_mt_hap1.fa -s centrostephanusRodgersii -o ./EarlyGrey_Hap1 -t 16
 
+# Using the output *-families.fa.strained and combing by haplotypes
+cat hap1_-families.fa.strained hap2_-families.fa.strained > haps_-families.fa.strained
+
+# Use CD-HIT est - tested different parameters, this was best
+cd-hit-est -i haps_families.fa.strained -o est_haps.fa -aS 0.8 -c 0.95 -G 0 -n 10 -M 24000 -T 8
+
+
 
 
 
