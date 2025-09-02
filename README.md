@@ -441,3 +441,35 @@ out <- run_genespace(gpar)
 
 srun Rscript ./genespace.R
 
+# Curating riparian plot
+# Load in the necessary libraries
+library(GENESPACE)
+library(ggplot2)
+
+# To change the riparian plots for each genepsace run output, get to the results folder of that run
+setwd("/path/to/results/")
+# Need to load in the gsParams.rda file as step one
+load('gsParams.rda', verbose = TRUE)
+# Set the theme parameters first to change colours, etc... then put that into the riparian plot as "addThemes = " for grey background
+ggthemes <- ggplot2::theme(
+  panel.background = ggplot2::element_rect(fill = "grey95"))
+# Change colours
+customPal <- colorRampPalette( 
+  c("springgreen3","seagreen4" ,"paleturquoise4", "skyblue4", "dodgerblue4", 
+        "steelblue3", "royalblue","darkblue", "darkslateblue","purple4", "darkorchid4", 
+        "hotpink4","darkred","tomato4", "salmon4", "darkorange4", "tan4", "goldenrod4",
+        "gold3",  "yellow3", "khaki4", "lemonchiffon4"))
+# Invert chromosomes for better visual clarity
+invchr <- data.frame (
+  genome = c("Htub", "Htub", "Htub", "Htub", "Htub"), 
+  chr = c("chr11", "chr7", "chr12", "chr10", "chr14"))
+
+# Run riparian plot 
+ripTest <- plot_riparian(
+  gsParam = gsParam, 
+  invertTheseChrs = invchr ,
+  refGenome = "Crod_v1.1",
+  chrFill = "lightgrey",
+  palette = customPal,
+  addThemes = ggthemes,
+  pdfFile = "Out_riparian.pdf")
