@@ -1,29 +1,35 @@
 ## Centrostephanus rodgersii Genome Assembly Workflow
 
 ### Trimming and Filtering
-
 ```bash
-Add all of the trimming and filtering steps here upfront
 ONT
 # Final decision is to split the passed reads data into >50kb, 20-50kb, 10-20kb, 5-10kb, 1-5kb and <1kb sizes 
 # First, need to combine passed and failed reads into one  
 cat Combined_pass.pc.fastq.gz Combined_fail.pc.fastq.gz > Combined_pass_and_fail.pc.fastq.gz
 
 # Combined dataset will be fed to chopper to create tranches of data according to size (NB at this stage no Q filtering applied)
+gunzip -c Combined_pass_and_fail.pc.fastq.gz | chopper --minlength 1000 --maxlength 20000 | gzip > All_1kb_to_20kb.fastq.gz
+gunzip -c Combined_pass_and_fail.pc.fastq.gz | chopper --minlength  --maxlength 49999 | gzip > All_20kb_to_50kb.fastq.gz
 gunzip -c Combined_pass_and_fail.pc.fastq.gz | chopper --minlength 50000 | gzip > All_50kbplus.fastq.gz
 
 # Create datasets for assembly 
 # The first test of this will use a Q15 and >5kb subset, second will be Q7 >20kb
 # examples
-gunzip -c All_50kbplus.fastq.gz | chopper --quality 15 | gzip > Q15_50kbplus.fastq.gz
-gunzip -c All_50kbplus.fastq.gz | chopper --quality 7 | gzip > Q7_50kbplus.fastq.gz
-# tested with seqkit stats
+gunzip -c All_50kbplus.fastq.gz | chopper --quality 10 | gzip > Q10_50kbplus.fastq.gz
+gunzip -c All_20kb_to_50kb.fastq.gz | chopper --quality 10 | gzip > Q10_20kb_50Kb.fastq.gz
+gunzip -c All_1kb_to_20kb.fastq.gz | chopper --quality 20 | gzip > Q20_1kb_20kb.fastq.gz
+# tested with seqkit stats, fastqc
 
 Illumina
+# Illumina data was trimmed
+trim_galore --trim-n  --cores 4 --2colour 20 --paired --fastqc R1_001.fastq.gz R2_001.fastq.gz
+# Filtered with 
+fastp -i R1_001.fastq.gz  -I R2_001.fastq.gz -o illumina_trimmed_R1.fastq.gz -O illumina_trimmed_R2.fastq.gz
+
 Hi-C
 
 
-# RNA-Seq
+RNA-Seq
 # load TrimGalore FastQC
 # repeat for all three tissue types (spine, gonad, mouth)
 read1=L1_1.fq.gz
@@ -125,6 +131,7 @@ minimap2 -xasm5 -DP hap2.split hap2.split | gzip -c - > hap2.split.self.paf.gz
 purge_dups -2 -T cutoffs -c TX.base.cov hap2.split.self.paf.gz > dups.bed 2> purge_dups.log
 get_seqs dups.bed -e hap2.fa
 ```
+
 #### NextPolish2 
 ```bash
 # combine haplotypes
@@ -169,8 +176,8 @@ haps_purged_wmg.np2.fa, hap1_purged_wmg.np2.fa, hap2_purged_wmg.np2.fa
 compleasm.py run -a hap1_purged_wmg.np2.fa -o out_directory -l metazoa -t 8
 # looks good, continue to HiC
 ```
-#### Hi-C using YAHS pipeline
 
+#### Hi-C using YAHS pipeline
 ``` bash
 # running first steps for YAHS
 # cat haplotypes together haps_purged_wmg.np2.fa
@@ -254,8 +261,8 @@ samtools sort -@ 32 -T ali.tmp haps_JBAT_ONTmap.sam > haps_JBAT_ONTmap.bam
 #in qualimap script needed to change MaxPermSize=1024m to MaxMetaspaceSize re:suggestion online to get newer java to run
 ./qualimap bamqc -bam haps_JBAT_ONTmap.bam -outdir results --java-mem-size=32G
 ```
-#### quarTeT
 
+#### quarTeT
 ```bash
 # Use quarTeT to find telomeres and centromeres
 # Telominer and Centrominer (repeat for hap2)
@@ -263,8 +270,8 @@ samtools sort -@ 32 -T ali.tmp haps_JBAT_ONTmap.sam > haps_JBAT_ONTmap.bam
 python3 ./quartet.py TeloExplorer -i hap1_JBAT.renamed.FINAL.fa -c animal -p hap1_renamed
 python3 ./quartet.py CentroMiner -i hap1_JBAT.renamed.FINAL.fa -p hap1_renamed
 ```
-#### Manual Curation
 
+#### Manual Curation
 ```bash
 # Trim excessive N's due to introduction during dual scaffold option assembly
 # Use combined haplotypes
@@ -277,7 +284,6 @@ python trim_ns.py haps_1mtg_FINAL.fa haps_1mtg_trimN.fa 10000
 # use cut to isolate the columns you want, generated an alternative list of scaffold IDs to replace the old ones, using the same order that they are in the fasta file and then seqkit tab2fx to bring it back together
 seqkit fx2tab hap1_1mtg_FINAL_trimN.fa | cut -f 2 | paste hap1_newChromName.txt - | seqkit tab2fx > Crod1.0_chrom_hap1.fa
 seqkit fx2tab hap2_1mtg_FINAL_trimN.fa | cut -f 2 | paste hap2_newChromName.txt - | seqkit tab2fx > Crod1.0_chrom_hap2.fa
-
 
 # Checking it worked correctly 
 grep ">" Crod1.0_chrom_hap1.fa > hap1_NEWTEST.txt
@@ -338,6 +344,7 @@ cat hap1_-families.fa.strained hap2_-families.fa.strained > haps_-families.fa.st
 cd-hit-est -i haps_families.fa.strained -o est_haps.fa -aS 0.8 -c 0.95 -G 0 -n 10 -M 24000 -T 8
 # use this output for RepeatMasker
 ```
+
 #### RepeatMasker
 ```bash
 # Run RepeatMasker for both haplotypes using the repeat library from EarlGrey
@@ -346,6 +353,7 @@ RepeatMasker -pa 24 -s -a -no_is -xsmall -gff -dir RepeatMasker -lib est_haps.fa
 # Check for any other repeats to mask
 # Ran contamination scan, found some remnant adapters, going back to manual curation to mask adapters before moving onto BRAKER
 ```
+
 #### BRAKER and Annotation
 ```bash
 # Need GeneMark license obtained
@@ -409,7 +417,6 @@ awk '{gsub(/ .*/, ""); print $0}' Crod_v1.1_protein.fa > Crod_v1.1_protein_fixed
 ```
 
 #### Synteny
-
 ```bash
 # Run SVIM-asm to compare haplotypes
 # align first 
@@ -438,10 +445,9 @@ out <- run_genespace(gpar)
 
 # SLUM script to run bash
 #load R-bundle-Bioconductor DIAMOND OrthoFinder
-
 srun Rscript ./genespace.R
 
-# Curating riparian plot
+# Curating riparian plot done interactively in RStudio
 # Load in the necessary libraries
 library(GENESPACE)
 library(ggplot2)
