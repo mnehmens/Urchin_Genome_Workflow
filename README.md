@@ -1,3 +1,6 @@
+# ADD IN ASSEMBLY PIPELINE GRAPH HERE
+# GIVE BLURB ABOUT WHAT WE DID
+
 ## Centrostephanus rodgersii Genome Assembly Workflow
 
 ### Trimming and Filtering
